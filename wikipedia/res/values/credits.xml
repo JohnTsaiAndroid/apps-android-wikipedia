@@ -5,6 +5,10 @@
         <!--  https://raw.githubusercontent.com/ACRA/acra/master/LICENSE -->
         (<a title="acra-title" name="acra-name" href="file:///android_asset/licenses/ACRA">license</a>),
 
+        <a href="https://commons.apache.org/proper/commons-lang/">Apache Commons Lang</a>
+        <!-- https://git-wip-us.apache.org/repos/asf?p=commons-lang.git;a=blob_plain;f=LICENSE.txt;hb=HEAD -->
+        (<a href="file:///android_asset/licenses/ApacheCommonsLang">license</a>),
+
         <a href="https://github.com/keyboardsurfer/Crouton">Crouton</a>
         <!-- https://raw.githubusercontent.com/keyboardsurfer/Crouton/master/LICENSE -->
         (<a href="file:///android_asset/licenses/Crouton">license</a>),

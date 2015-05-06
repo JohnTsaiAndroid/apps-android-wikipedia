@@ -15,6 +15,7 @@ import com.squareup.otto.Bus;
 import org.acra.ACRA;
 import org.acra.ReportingInteractionMode;
 import org.acra.annotation.ReportsCrashes;
+import org.apache.commons.lang3.ArrayUtils;
 import org.mediawiki.api.json.Api;
 import org.wikipedia.analytics.FunnelManager;
 import org.wikipedia.analytics.SessionFunnel;
@@ -56,6 +57,8 @@ import java.util.UUID;
         resDialogCommentPrompt = R.string.acra_report_dialog_comment,
         mailTo = "mobile-android-wikipedia-crashes@wikimedia.org")
 public class WikipediaApp extends Application {
+    private static final String FALLBACK_WIKI_LANG_CODE = "en"; // Must exist in preference_language_keys.
+    private static final String HTTPS_PROTOCOL = "https";
 
     private float screenDensity;
     public float getScreenDensity() {
@@ -63,7 +66,7 @@ public class WikipediaApp extends Application {
     }
 
     // Reload in onCreate to override
-    private String networkProtocol = "https";
+    private String networkProtocol = HTTPS_PROTOCOL;
     public String getNetworkProtocol() {
         return networkProtocol;
     }
@@ -106,6 +109,8 @@ public class WikipediaApp extends Application {
     public int getReleaseType() {
         return releaseType;
     }
+
+    private String[] wikiCodes;
 
     private List<String> languageMruList;
 
@@ -332,7 +337,7 @@ public class WikipediaApp extends Application {
                 // No preference set!
                 String wikiCode = Utils.langCodeToWikiLang(Locale.getDefault().getLanguage());
                 if (!isWikiLanguage(wikiCode)) {
-                    wikiCode = "en"; // fallback, see comments in #findWikiIndex
+                    wikiCode = FALLBACK_WIKI_LANG_CODE; // fallback, see comments in #findWikiIndex
                 }
                 return wikiCode;
             }
@@ -377,34 +382,25 @@ public class WikipediaApp extends Application {
         return persisters.get(cls.getCanonicalName());
     }
 
-    private String[] wikiCodes;
     public int findWikiIndex(String wikiCode) {
-        if (wikiCodes == null) {
-            wikiCodes = getResources().getStringArray(R.array.preference_language_keys);
+        int index = ArrayUtils.indexOf(getWikiCodes(), wikiCode);
+        if (index == ArrayUtils.INDEX_NOT_FOUND) {
+            // FIXME: Instrument this with EL to find out what is happening on places where there is a lang we can't find
+            // In the meantime, just fall back to en. See https://bugzilla.wikimedia.org/show_bug.cgi?id=66140
+            return findWikiIndex(FALLBACK_WIKI_LANG_CODE);
         }
-        for (int i = 0; i < wikiCodes.length; i++) {
-            if (wikiCodes[i].equals(wikiCode)) {
-                return i;
-            }
-        }
-
-        // FIXME: Instrument this with EL to find out what is happening on places where there is a lang we can't find
-        // In the meantime, just fall back to en. See https://bugzilla.wikimedia.org/show_bug.cgi?id=66140
-        return findWikiIndex("en");
+        return index;
     }
 
     private boolean isWikiLanguage(String lang) {
+        return ArrayUtils.contains(getWikiCodes(), lang);
+    }
+
+    private String[] getWikiCodes() {
         if (wikiCodes == null) {
             wikiCodes = getResources().getStringArray(R.array.preference_language_keys);
         }
-
-        for (String wikiCode : wikiCodes) {
-            if (wikiCode.equals(lang)) {
-                return true;
-            }
-        }
-
-        return false;
+        return wikiCodes;
     }
 
     private RemoteConfig remoteConfig;
@@ -606,23 +602,30 @@ public class WikipediaApp extends Application {
     }
 
     public List<String> getLanguageMruList() {
-        if (languageMruList == null) {
-            languageMruList = new ArrayList<>();
-            String mruString = prefs.getString(PrefKeys.getLanguageMru(), getPrimaryLanguage());
-            languageMruList.addAll(Arrays.asList(mruString.split(",")));
-        }
+        lazyInitLanguageToMruList();
         return languageMruList;
     }
 
     public void addLanguageToMruList(String langCode) {
-        if (languageMruList != null) {
-            languageMruList.remove(langCode);
-            languageMruList.add(0, langCode);
-            prefs.edit().putString(PrefKeys.getLanguageMru(), TextUtils.join(",", languageMruList)).apply();
-        }
+        lazyInitLanguageToMruList();
+        languageMruList.remove(langCode);
+        languageMruList.add(0, langCode);
+        prefs.edit().putString(PrefKeys.getLanguageMru(), TextUtils.join(",", languageMruList)).apply();
     }
 
     public boolean showImages() {
         return prefs.getBoolean(PrefKeys.getShowImages(), true);
+    }
+
+    private void lazyInitLanguageToMruList() {
+        if (languageMruList == null) {
+            languageMruList = new ArrayList<>();
+            String mruString = prefs.getString(PrefKeys.getLanguageMru(), getPrimaryLanguage());
+            languageMruList.addAll(csvToList(mruString));
+        }
+    }
+
+    private List<String> csvToList(String commaDelimitedString) {
+        return Arrays.asList(commaDelimitedString.split(","));
     }
 }
